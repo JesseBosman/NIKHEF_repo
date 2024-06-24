@@ -1,7 +1,7 @@
 import ROOT
 import pandas as pd
 import os 
-ROOT.gSystem.Load('/path/to/OscProb/libOscProb.so')
+ROOT.gSystem.Load('/home/jbosman/OscProb/lib/libOscProb.so')
 
 
 neutr_paths = os.listdir("datav2")
