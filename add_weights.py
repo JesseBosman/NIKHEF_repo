@@ -2,80 +2,161 @@ import ROOT
 import pandas as pd
 import os 
 import numpy as np
+import km3flux
+from tqdm import tqdm
+
+def return_honda_fluxes(row, p, prem_model, flux, energy):
+    prem_model.FillPath(row["cos_zenith_true"])
+    p.SetPath(prem_model.GetNuPath())
+
+    
+
+    # as the energy in the flux data is binned, we need to find out the correct energy value to take.
+    # see that I do this doubly, could make this more efficient/quicker.
+    arg_min = np.argwhere(flux._data.energy<=energy)[-1]
+    arg_max = arg_min+1
+    min_max_energy_range = np.array([flux._data.energy[arg_min], flux._data.energy[arg_max]])
+
+    diff = np.abs(min_max_energy_range-energy)
+
+    energy_crit_flux = min_max_energy_range[np.argmin(diff)]
+
+    # select the correct data subset
+    honda_fluxes = flux._data[(flux._data.cosz_min < row["cos_zenith_true"]) & (flux._data.cosz_max >=row["cos_zenith_true"]) & (flux._data.energy == energy_crit_flux)]
+
+    return honda_fluxes, p
 
 ROOT.gSystem.Load('/home/jbosman/OscProb/lib/libOscProb.so')
-
-neutr_paths = os.listdir("/home/jbosman/data_classification/")
-muon_path = "/home/jbosman/data_classification/"+neutr_paths.pop(-2)
-neutr_types = [12,14,16,-12,-14,-16,14,-14]
-is_CC = [1,0,1,1,1,1,1,0]
+parent_dir = "/home/jbosman/datav7.2_flux_weighed_reduced/"
+neutr_paths = os.listdir(parent_dir)
+neutr_paths = [path for path in neutr_paths if "mupage" not in path]
 
 df_atm_neutr = pd.DataFrame()
 p = ROOT.OscProb.PMNS_Fast()
 
-w2_name = "weight"
-Ngen_name = "N_gen"
-exposure_name = "exposure"
+# exposure_name = "exposure"
 
-prem_model = ROOT.PremModel()
+prem_model = ROOT.OscProb.PremModel()
+honda = km3flux.flux.Honda()
+flux = honda.flux(2014, "Frejus", "azimuth", 'min')
 
-# need to find out what the fluxes are for the different neutrino types.
-flux_nu_mu = None
-flux_nu_e = None
-flux_nu_tau = None
+# no values for nu_tau in flux, so set to 0.
+# flux_nu_tau = 0
 
 # ORCA is roughly at 42°45'20"N 6°05'04"E, however this not used by prem_model and not exact.
 # default r = 6368 km which is at bottom of ocean layer.
 
-for i, path in enumerate(neutr_paths):
-    path = "/home/jbosman/data_classification/"+path
-    df = pd.read_hdf(path, "y")
-    df['type'] = neutr_types[i]
-    df["is_CC"] = is_CC[i]
+for i, path in enumerate([neutr_paths[0]]):
+    print(path)
+    total_path = parent_dir+path
+    df = pd.read_hdf(total_path)
+    # df["flux_weight"] = 0.0'
+    df["manual_flux_weight"] = 0.0
+
+    particle_type = df["pdgid"].iloc[0]
+    print(particle_type)
 
     # to use the functions we need to iterate through each point seperately.
-    for index, row in df.iterrows():
+    if particle_type == 12:
+        p.SetIsNuBar(False)
+        for index, row in tqdm(df.iterrows(), total = len(df)):
+            energy = row["energy"]
+            fluxes, p = return_honda_fluxes(row, p, prem_model, flux, energy)
+            flux_nu_e = fluxes["nue"][0]
+            flux_nu_mu = fluxes["numu"][0]
+            flux_oscillation = flux_nu_e*p.Prob(0, 0, energy) + flux_nu_mu*p.Prob(1, 0, energy)#+ flux_nu_tau*p.Prob(2, 0, energy)
+            # flux_weight = row["weight_one_year"]*flux_oscillation'
+            # row["flux_weight"] = flux_weight
+            flux_weight = row["w2"]/row["ngen"]*row["exposure"] *flux_oscillation
+            row["manual_flux_weight"] = flux_weight
+            
+            df.loc[index] = row
+            
+    elif particle_type == -12:
+        p.SetIsNuBar(True)
+        for index, row in tqdm(df.iterrows(), total = len(df)):
+            energy = row["energy"]
+            fluxes, p = return_honda_fluxes(row, p, prem_model, flux, energy)
+            flux_nu_e = fluxes["anue"][0]
+            flux_nu_mu = fluxes["anumu"][0]
+            flux_oscillation = flux_nu_e*p.Prob(0, 0, energy) + flux_nu_mu*p.Prob(1, 0, energy)# + flux_nu_tau*p.Prob(2, 0, energy)
+            # flux_weight = row["weight_one_year"]*flux_oscillation
+            # row["flux_weight"] = flux_weight
+            flux_weight = row["w2"]/row["ngen"]*row["exposure"] *flux_oscillation
+            row["manual_flux_weight"] = flux_weight
 
-        # need to calculate path through earth.
-        cos_theta = np.sqrt(1 - row["dir_z"]**2)
-        prem_model.FillPath(cos_theta)
-        p.SetPath(prem_model.GetNuPath())
+            df.loc[index] = row
+    
+    elif particle_type == 14:
+        p.SetIsNuBar(False)
+        for index, row in tqdm(df.iterrows(), total = len(df)):
+            energy = row["energy"]
+            fluxes, p = return_honda_fluxes(row, p, prem_model, flux, energy)
+            flux_nu_e = fluxes["nue"][0]
+            flux_nu_mu = fluxes["numu"][0]
+            flux_oscillation = flux_nu_e*p.Prob(0, 1, energy) + flux_nu_mu*p.Prob(1, 1, energy)# + flux_nu_tau*p.Prob(2, 1, energy)
+            # flux_weight = row["weight_one_year"]*flux_oscillation
+            # row["flux_weight"] = flux_weight
+            flux_weight = row["w2"]/row["ngen"]*row["exposure"] *flux_oscillation
+            row["manual_flux_weight"] = flux_weight
+            df.loc[index] = row
 
-        # now calculate the oscillation probabilities
-        energy = row["energy"]
-        particle_type = row["type"]
-        if particle_type == 12:
-            p.SetIsNuBar(False)
-            flux_oscillation = flux_nu_e*p.Prob(0, 0, energy) + flux_nu_mu*p.Prob(1, 0, energy) + flux_nu_tau*p.Prob(2, 0, energy)
-        elif particle_type == -12:
-            p.SetIsNuBar(True)
-            flux_oscillation = flux_nu_e*p.Prob(0, 0, energy) + flux_nu_mu*p.Prob(1, 0, energy) + flux_nu_tau*p.Prob(2, 0, energy)
+    elif particle_type == -14:
+        p.SetIsNuBar(True)
+        for index, row in tqdm(df.iterrows(), total = len(df)):
+            energy = row["energy"]
+            fluxes, p = return_honda_fluxes(row, p, prem_model, flux, energy)
+            flux_nu_e = fluxes["anue"][0]
+            flux_nu_mu = fluxes["anumu"][0]
+            flux_oscillation = flux_nu_e*p.Prob(0, 1, energy) + flux_nu_mu*p.Prob(1, 1, energy)# + flux_nu_tau*p.Prob(2, 1, energy)
+            # flux_weight = row["weight_one_year"]*flux_oscillation
+            # row["flux_weight"] = flux_weight
+            flux_weight = row["w2"]/row["ngen"]*row["exposure"] *flux_oscillation
+            row["manual_flux_weight"] = flux_weight
+            df.loc[index] = row
         
-        elif particle_type == 14:
-            p.SetIsNuBar(False)
-            flux_oscillation = flux_nu_e*p.Prob(0, 1, energy) + flux_nu_mu*p.Prob(1, 1, energy) + flux_nu_tau*p.Prob(2, 1, energy)
-
-        elif particle_type == -14:
-            p.SetIsNuBar(True)
-            flux_oscillation = flux_nu_e*p.Prob(0, 1, energy) + flux_nu_mu*p.Prob(1, 1, energy) + flux_nu_tau*p.Prob(2, 1, energy)
+    elif particle_type == 16:
+        p.SetIsNuBar(False)
+        for index, row in tqdm(df.iterrows(), total = len(df)):
+            energy = row["energy"]
+            fluxes, p = return_honda_fluxes(row, p, prem_model, flux, energy)
+            flux_nu_e = fluxes["nue"][0]
+            flux_nu_mu = fluxes["numu"][0]
+            flux_oscillation = flux_nu_e*p.Prob(0, 2, energy) + flux_nu_mu*p.Prob(1, 2, energy)# + flux_nu_tau*p.Prob(2, 2, energy)
+            # flux_weight = row["weight_one_year"]*flux_oscillation
+            # row["flux_weight"] = flux_weight
+            flux_weight = row["w2"]/row["ngen"]*row["exposure"] *flux_oscillation
+            row["manual_flux_weight"] = flux_weight
+            df.loc[index] = row
         
-        elif particle_type == 16:
-            p.SetIsNuBar(False)
-            flux_oscillation = flux_nu_e*p.Prob(0, 2, energy) + flux_nu_mu*p.Prob(1, 2, energy) + flux_nu_tau*p.Prob(2, 2, energy)
+    elif particle_type == -16:
+        p.SetIsNuBar(True)
+        for index, row in tqdm(df.iterrows(), total = len(df)):
+            energy = row["energy"]
+            fluxes, p = return_honda_fluxes(row, p, prem_model, flux, energy)
+            flux_nu_e = fluxes["anue"][0]
+            flux_nu_mu = fluxes["anumu"][0]
+            flux_oscillation = flux_nu_e*p.Prob(0, 2, energy) + flux_nu_mu*p.Prob(1, 2, energy)# + flux_nu_tau*p.Prob(2, 2, energy)
+            # flux_weight = row["weight_one_year"]*flux_oscillation
+            # row["flux_weight"] = flux_weight
+            flux_weight = row["w2"]/row["ngen"]*row["exposure"] *flux_oscillation
+            row["manual_flux_weight"] = flux_weight
+            df.loc[index] = row
+
+    else:
+        raise ValueError("Particle type not recognized")
         
-        elif particle_type == -16:
-            p.SetIsNuBar(True)
-            flux_oscillation = flux_nu_e*p.Prob(0, 2, energy) + flux_nu_mu*p.Prob(1, 2, energy) + flux_nu_tau*p.Prob(2, 2, energy)
+    
 
-        else:
-            raise ValueError("Particle type not recognized")
-        
+    # df.to_hdf(path, "y", mode="w")
+    # print(flux_weight)
+    # print(df.columns)
+    print(df["manual_flux_weight"][:20])
 
-        row["flux_weight"] = row[w2_name]/row[Ngen_name]*row[exposure_name]*flux_oscillation
-
-        df.loc[index] = row
-
-    df.to_hdf(path, "y", mode="w")
+    # if not os.path.isdir("/home/jbosman/datav7.2_pid_h5_flux_weighted/"):
+    #     os.mkdir("/home/jbosman/datav7.2_pid_h5_flux_weighted/")
+    # df.to_hdf("/home/jbosman/datav7.2_pid_h5_flux_weighted/"+path, key = "y", mode="w")
+    df.to_hdf("/home/jbosman/NIKHEF_repo/"+path, key = "y", mode="w")
 
 
 
