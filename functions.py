@@ -156,7 +156,7 @@ def load_data(directory, type = "all"):
         
     elif type == "neutrino":
         for path in os.listdir(directory):
-            if "mupage" not in path:
+            if "gsg" in path:
                 df = pd.concat([df, pd.read_hdf(directory + path)])
     elif type == "muon":
         for path in os.listdir(directory):
