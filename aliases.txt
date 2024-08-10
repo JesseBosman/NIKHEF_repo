@@ -1,0 +1,30 @@
+{
+    
+'mc_id': ['mc_id', 'E.mc_id'], 
+'energy': ['energy_true', 'energy'], 
+'pos_x': ['pos_x_true', 'E.mc_trks.pos.x[:,0]'], 
+'pos_y': ['pos_y_true', 'E.mc_trks.pos.y[:,0]'], 
+'pos_z': ['pos_z_true', 'E.mc_trks.pos.z[:,0]'], 
+'run_id': ['run_id', 'E.run_id'], 
+'trigger_mask': ['trigger_mask', 'E.trigger_mask'], 
+'energy_recoJEnergy': ['E.trks.fitinf[:,0,4]', 'energy_recoJEnergy', 'E.trks.E[:,0]'], 
+'energy_recoJShower': ['energy_recoJShower', 'E.trks.E[:,1]'], 
+'beta0': ['beta0', 'E.trks.fitinf[:,0,0]'], 'track_length_JGandalf': ['E.trks.len[:,0]', 'E.trks.fitinf[:,0,10]'], 
+'pos_x_recoDusj': ['E.trks.len[:,1]', 'E.trks.fitinf[:,0,8]', 'E.trks.fitinf[:,0,12]', 'pos_z_recoDusj', 'pos_x_recoDusj', 'E.trks.fitinf[:,0,11]', 'pos_y_recoDusj'], 
+'likelihood_JGandalf': ['gandalf_lik', 'E.trks.lik[:,0]'], 
+'pos_x_recoJGandalf': ['pos_x_recoJGandalf', 'E.trks.pos.x[:,0]'], 
+'pos_x_recoJShower': ['pos_x_recoJShower', 'E.trks.pos.x[:,1]'], 
+'pos_y_recoJGandalf': ['pos_y_recoJGandalf', 'E.trks.pos.y[:,0]'], 
+'pos_y_recoJShower': ['pos_y_recoJShower', 'E.trks.pos.y[:,1]'], 
+'pos_z_recoJGandalf': ['pos_z_recoJGandalf', 'E.trks.pos.z[:,0]'], 
+'pos_z_recoJShower': ['pos_z_recoJShower', 'E.trks.pos.z[:,1]'], 
+'rectype_JGandalf': ['rectype_JGandalf', 'E.trks.rec_type[:,0]'], 
+'rectype_JShower': ['rectype_JShower', 'E.trks.rec_type[:,1]'], 
+'pos_r_JGandalf': ['gandalf_pos_r', 'T.feat_Neutrino2020.gandalf_pos_r'], 
+'mximumToT_triggerHit': ['maximumToT_triggerHit', 'T.feat_Neutrino2020.maximumToT_triggerHit'], 
+'meanZhitTrig': ['meanZhitTrig', 'T.feat_Neutrino2020.meanZhitTrig'], 
+'nTriggerHits': ['T.sum_trig_hits.nhits', 'nTriggerHits', 'T.feat_Neutrino2020.nTriggerHits'], 
+'bjorken_y_recoJShower': ['bjorken_y_recoJGandalf', 'energy_recoDusj', 'bjorken_y_recoDusj', 'bjorken_y_recoJShower'], 
+'E_min_gen': ['E_max_gen', 'E_min_gen']
+
+}

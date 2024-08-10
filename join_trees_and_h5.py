@@ -7,7 +7,7 @@ import argparse
 
 
 
-def join_trees_and_h5(det, pid_filename):
+def match_tree_to_h5(det, pid_filename):
     if det == "ORCA6":
         tree_name = "scores"
     elif det == "ORCA10":
@@ -27,19 +27,34 @@ def join_trees_and_h5(det, pid_filename):
 
     if not found_match:
         print("no matching tree file for "+ pid_filename)
+    
+    return df_h5, df_tree
 
+def join_trees_and_h5(det, pid_filename):
+
+    df_h5, df_tree = match_tree_to_h5(det, pid_filename)
 
     df_joined = pd.merge(df_h5, df_tree, "inner")
     df_h5 = None
     df_tree = None
     return df_joined
 
-det = "ORCA6"
-storage_dir = "/data/antares/users/jwbosman/{}/data/".format(det)
-if not os.path.exists(storage_dir):
-    os.makedirs(storage_dir)
+def join(det):
+    storage_dir = "/data/antares/users/jwbosman/{}/data/".format(det)
+    if not os.path.exists(storage_dir):
+        os.makedirs(storage_dir)
 
-for pid_filename in tqdm(os.listdir("/data/antares/users/jwbosman/{}/pid_output/".format(det))):
-    df_joined = join_trees_and_h5(det, pid_filename)
-    df_joined.to_hdf(path_or_buf= storage_dir+pid_filename, key="y", mode = "w")
+    for pid_filename in tqdm(os.listdir("/data/antares/users/jwbosman/{}/pid_output/".format(det))):
+        df_joined = join_trees_and_h5(det, pid_filename)
+        df_joined.to_hdf(path_or_buf= storage_dir+pid_filename, key="y", mode = "w")
+
+
+det = "ORCA6"
+
+
+# for pid_filename in tqdm(os.listdir("/data/antares/users/jwbosman/{}/pid_output/".format(det))):
+#     df_h5, df_tree = match_tree_to_h5(det, pid_filename)
+#     print(np.sum((df_tree["muonscore"]==np.inf)|(df_tree["muonscore"]==-np.inf)))
+#     df_joined = pd.merge(df_h5, df_tree, "inner")
+#     print(np.sum((df_joined["muonscore"]==np.inf)|(df_joined["muonscore"]==-np.inf)))
 

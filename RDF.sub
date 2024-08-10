@@ -1,0 +1,21 @@
+# RDF.sub -- submit the RDF.py file
+
+executable              = RDF_optuna.sh
+
+log                     = RDF.log
+output                  = RDF.out
+error                   = RDF.err
+
+should_transfer_files   = Yes
+when_to_transfer_output = ON_EXIT
+
+request_cpus            = 1
+request_memory          = 5G
+request_disk            = 2G
+
++UseOS                  = "el9"
+## This job can run up to 4 hours. Can choose "express", "short", "medium", or "long".
++JobCategory            = "short"
+
+
+queue

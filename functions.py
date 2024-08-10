@@ -12,7 +12,12 @@ def overview_data_table(df):
     and real events (according to weight) for each different particle type.
     """
     unique_pdgids = np.unique(df["pdgid"])
-    unique_interactions = np.unique(df["is_cc"])
+    try:
+        unique_interactions = np.unique(df["T_sum_mc_nu.cc"])
+        interaction_column = "T_sum_mc_nu.cc"
+    except:
+        unique_interactions = np.unique(df["is_cc"])
+        interaction_column = "is_cc"
 
     names = {13: "muon", 12: "nue", -12: "anue", 14: "numu", -14: "anumu", 16: "nutau", -16: "anutau"}
 
@@ -26,39 +31,59 @@ def overview_data_table(df):
             else:
                 interaction_label = "unknown"
 
-            data_interaction = df[(df["pdgid"] == pdgid) & (df["is_cc"] == interaction)]
+            data_interaction = df[(df["pdgid"] == pdgid) & (df[interaction_column] == interaction)]
             if len(data_interaction) == 0:
                 continue
 
             n_datapoints = len(data_interaction)
 
-            if pdgid == 13:
-                n_events = data_interaction["weight_one_year"].sum()
-            else:
-                n_events = data_interaction["flux_weight"].sum()
+            n_events = np.sum(data_interaction["weight"])
 
-            exposure = data_interaction["exposure"].unique()[0] / (365 * 24 * 3600)
+            unique_exposures = data_interaction["exposure"].unique()
 
-            overview.append({"type": names[pdgid], "interaction": interaction_label, "# datapoints": n_datapoints, "# real events": np.round(n_events, 2), "exposure (yr)": np.round(exposure, 2)})
+            n_events_one_year = np.sum(data_interaction["weight_one_year"])
+
+            exposure = data_interaction["exposure"].mean() / (365 * 24 * 3600)
+
+            overview.append({"type": names[pdgid], "interaction": interaction_label, "# datapoints": n_datapoints, "# real events": np.round(n_events, 2), "# real events / year": n_events_one_year, "exposure (yr)": np.round(exposure, 2)})
+
+            if len(unique_exposures) >1:
+                print("Multiple exposures found for pdgid {} and interaction {}".format(pdgid, interaction))
+                print(unique_exposures)
+                continue
 
     overview = pd.DataFrame(overview)
 
+    print(overview.to_latex(index=False))
+
     return overview
 
-def remove_infs(df, threshold = 0.2):
+def remove_infs(df):
     """
-    Removes the nan entries fromt the dataframe. If the amount of columns with nan values is greater than 1000,
-     the column is dropped. Else, if the amount of nan values in a column is greater than 0, the row is dropped.
+    Removes the Inf entries fromt the dataframe. Replace the (-)Inf values with the (minimum)maximum value of the column.
     """
     for column in df.columns:
-        n_inf = np.sum(df[column].isin([np.inf, -np.inf]))
-
-        if n_inf/len(df) > threshold:
-            df = df.drop(columns=[column])
-
-        elif n_inf > 0:
-            df = df.drop(df[df[column].isin([np.inf, -np.inf])].index)
-        
+        n_pos_inf = np.sum(df[column] == np.inf)
+        n_neg_inf = np.sum(df[column] == -np.inf)
+        if n_pos_inf > 0:
+            cond = df[column] == np.inf
+            col_max = np.max(df[column][np.isfinite(df[column])])
+            if col_max <0:
+                replacement = 0
+            
+            else:
+                replacement = 1.5*col_max
+            df[column] = df[column].mask(cond, other = replacement, inplace = False)
+            print("Replaced {} inf values in column {} with value {}.".format(n_pos_inf, column, replacement))
+        elif n_neg_inf > 0:
+            cond = df[column] == -np.inf
+            col_min = np.min(df[column][np.isfinite(df[column])])
+            if col_min < 0:
+                replacement = 1.5*col_min
+            else:
+                replacement = 0
+            df[column] = df[column].mask(cond, other = replacement, inplace = False)
+            print("Replaced {} -inf values in column {} with value {}.".format(n_neg_inf, column, replacement))
         else:
             continue
     
@@ -127,20 +152,24 @@ def remove_nans(df, threshold = 0.2):
      the column is dropped. Else, if the amount of nan values in a column is greater than 0, the row is dropped.
     """
     for column in df.columns:
-        n_nan = np.sum(df[column].isna())
+        column_isna = df[column].isna()
+        n_nan = np.sum(column_isna)
 
         if n_nan/len(df) > threshold:
             df = df.drop(columns=[column])
+            print("Dropped column: {}".format(column))
 
         elif n_nan > 0:
-            df = df.drop(df[df[column].isna()].index)
+            indices = df[df[column].isna()].index
+            df = df.drop(indices)
+            print("Dropped {} rows with nan values in column: {}".format(n_nan,column))
         
         else:
             continue
     
     return df
 
-def load_data(directory, type = "all"):
+def load_data(detector, type = "all"):
     """
     Loads the datafiles in the directory and returns the concatonated dataframe.
 
@@ -149,24 +178,30 @@ def load_data(directory, type = "all"):
         type: type of the datafiles. Options: 'muon', 'neutrino', 'noise', 'all'. Default: 'all'
     """
 
+    directory = "/data/antares/users/jwbosman/{}/data/".format(detector)
+
     df = pd.DataFrame()
     if type == "all":
         for path in os.listdir(directory):
-            df = pd.concat([df, pd.read_hdf(directory + path)])
+            new_df = pd.read_hdf(directory + path)
+            if "mupage" in path:
+               new_df["T.sum_mc_nu.cc"] = np.float32(0)
+            df = pd.concat([df, new_df], ignore_index=True)
         
     elif type == "neutrino":
         for path in os.listdir(directory):
             if "gsg" in path:
-                df = pd.concat([df, pd.read_hdf(directory + path)])
+                df = pd.concat([df, pd.read_hdf(directory + path)], ignore_index=True)
     elif type == "muon":
         for path in os.listdir(directory):
             if "mupage" in path:
-                df = pd.concat([df, pd.read_hdf(directory + path)])
+                df = pd.concat([df, pd.read_hdf(directory + path)], ignore_index=True)
+                df["T.sum_mc_nu.cc"] = np.float32(0)
         
     elif type == "noise":
         for path in os.listdir(directory):
             if "noise" in path:
-                df = pd.concat([df, pd.read_hdf(directory + path)])
+                df = pd.concat([df, pd.read_hdf(directory + path)], ignore_index=True)
     else:
         raise ValueError("Invalid type. Options: 'muon', 'neutrino', 'noise', 'all'")
 
