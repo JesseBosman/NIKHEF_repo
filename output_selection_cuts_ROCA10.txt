@@ -1,4 +1,0 @@
-Amount of events before general selection cuts: 8370625
-/data/antares/users/jwbosman/NIKHEF_repo/data_preparation.py:177: UserWarning: Boolean Series key will be reindexed to match DataFrame index.
-  return data[general_selection_cuts_reco]
-Amount of events after general selection cuts: 698474
